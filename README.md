@@ -3,7 +3,7 @@ sdoGA
 
 System Design Optimization Lab's Genetic Algorithm (sdoGA)
 
-sdoGA is a genetic algorithm that is designed for easy customization. To use, pass in the objective function along with the optional options and state structures.
+sdoGA is a genetic algorithm that is written in Matlab and designed for easy customization. To use, pass in the objective function along with the optional options and state structures.
 
     [state,options] = sdoGA(objectiveFunction[,options,state])
 
