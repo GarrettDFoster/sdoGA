@@ -26,7 +26,7 @@ function [state,options] = sdoGA(objectiveFunction,options,state)
   %                       | [ vector , >-Inf< ]
   %    design_upper_bound | upper bound for each variable
   %                       | [ vector , >Inf< ]
-  %     integer_variables | indicates which variables are integers
+  %     discrete_variables | indicates which variables are integers
   %                       | [ binary vector , >false< ]
   %      objective_length | the number of objectives in the problem
   %                       | [ positive integer , >0< ]
@@ -38,17 +38,11 @@ function [state,options] = sdoGA(objectiveFunction,options,state)
   %                       | [ vector , >Inf< ]
   %     constraint_length | number of constraints in the problem
   %                       | [ positive integer , >0< ]
-  % candidate_size_bounds | bounds on the number of designs in the candidate
-  %                       | population each generation
+  %          archive_size | max number of designs kept after each generation,
+  %                       | Note: ALL rank one points are kept regardless.
+  %                       | [integer value, >10*options.design_length<]
+  %         evals_per_gen | max number of candidates evaluated each generation
   %                       | [ positive integer , >10*options.design_length< ]
-  % candidate_size_update | the number of designs to add to or subtract from the
-  %                       | candidate population each generation
-  %                       | [ integer , >0< ]
-  %         active_fronts | determines how many frontiers to keep active
-  %                       | [ positive integer , >max(candidate_size_bounds)< ]
-  %               archive | indicates whether inactive designs should be kept,
-  %                       | otherwise they are discarded
-  %                       | [ binary , >false< ]
   %initializationFunction | the function(s) used to initialize the population if
   %                       | no designs currently exist in the archive
   %                       | [ custom function(s) , @initialization.random ,
@@ -57,11 +51,13 @@ function [state,options] = sdoGA(objectiveFunction,options,state)
   %                       | reproduction
   %                       | [ custom function(s) , @selection.roulette ,
   %                       | >@selection.tournament< ]
-  %     crossoverFunction | the function(s) used to intermix the design strings
+  %     crossoverFunction | the function(s) used to intermix the selected
+  %                       | design's genetic information
   %                       | [ custom function(s) , @crossover.scattered ,
   %                       | >@crossover.blended< ]
-  %      mutationFunction | the function(s) used to mutate the design strings
-  %                       | [ custom function(s) , @mutation.uniform ,
+  %      mutationFunction | the function(s) used to mutate the selected
+  %                       | design's genetic information
+  %                       | [ custom function(s) @mutation.uniform ,
   %                       | @mutation.biased , >@mutation.adaptive< ]
   %             tolerance | used to determine when two values are to be
   %                       | considered identical
@@ -96,40 +92,6 @@ function [state,options] = sdoGA(objectiveFunction,options,state)
   %                       | [ postive real , >Inf< ]
   %=============================================================================
   %
-  %This algorithm allows for multiple functions to be used for each operation.
-  %This does NOT apply to the objective function, which should be the handle to
-  %a single function. Multiple functions are entered using a cell array. The
-  %algorithm will execute them in the order of their entry as shown in the
-  %example below.
-  %
-  %Example: options.outputFunction = {@customFunc1,@customFunc2};
-  %
-  %The algorithm also allows for custom functions to be used inplace of or
-  %alongside the builtin operator functions. Below is a table showing the inputs
-  %and outputs for each type of custom function.
-  %
-  %=============================================================================
-  %function operation | <- inputs
-  %                   | -> outputs
-  %=============================================================================
-  %    initialization | <- state structure, options structure
-  %                   | -> candidates array
-  %         selection | <- state structure, options structure
-  %                   | -> candidates array
-  %         crossover | <- state structure, options structure
-  %                   | -> candidates array
-  %          mutation | <- state structure, options structure
-  %                   | -> candidates array
-  %              trim | <- state structure, options structure
-  %                   | -> candidates array
-  %         objective | <- design vector
-  %                   | -> objective vector, constraint vector (optional)
-  %            output | <- state structure, options structure
-  %                   | -> no output
-  %             other | <- state structure, options structure
-  %                   | -> state structure, options structure
-  %=============================================================================
-  %
   %The state structure below holds information about various parameters at the
   %current generation.
   %
@@ -140,6 +102,7 @@ function [state,options] = sdoGA(objectiveFunction,options,state)
   %     design_values | array storing all living evaluated designs
   %  objective_values | array storing objective values of living designs
   % constraint_values | array storing constraint values of living designs
+  %              ages | vector storing age of all living designs
   %             ranks | vector storing the rank each living designs associated
   %                     frontier
   %crowding_distances | vector storing the distance between each living design
@@ -158,7 +121,7 @@ function [state,options] = sdoGA(objectiveFunction,options,state)
   %author: Garrett Foster
   %email: garrett.d.foster@gmail.com
   %web: http://SDOResearch.com
-  %version: 2013.02.08
+  %version: 2013.03.11
   
   %detect options variable
   if ~exist('options','var') || ~isstruct(options)
@@ -166,7 +129,7 @@ function [state,options] = sdoGA(objectiveFunction,options,state)
   end
   
   %add the objective function to the options structure
-  if isfield(options,'objectiveFunction') && ~isempty(options.objectiveFunction) && ~isequal(objectiveFunction,options.objectiveFunction)
+  if isfield(options,'objectiveFunction') && ~isequal(objectiveFunction,options.objectiveFunction)
     warning('Objective Function has been changed!');
   end
   if iscell(objectiveFunction)
@@ -264,12 +227,17 @@ function state = setState(state,options)
     state.constraint_values = [];
   end
   
+  %age of each design
+  if ~isfield(state,'ages')
+    state.ages = [];
+  end
+  
   %archive of rank values
   if ~isfield(state,'ranks')
     state.ranks = [];
   end
   
-  %archive of crowding distance values
+  %archive of crowding distance values per frontier group
   if ~isfield(state,'crowding_distances')
     state.crowding_distances = [];
   end
@@ -290,15 +258,19 @@ function state = setState(state,options)
   end
   
   %runtime per generation
-  if ~isfield(state,'runtime')
-    state.runtime = [];
+  if ~isfield(state,'runtimes')
+    state.runtimes = [];
   end
   
-  %generation of last improvement should always initialize to 0
-  state.stall_generations = 0;
+  %generation of last improvement
+  if ~isfield(state,'stall_generations') || isempty(state.stall_generations)
+    state.stall_generations = 0;
+  end
   
   %amount converged
-  state.converged_fraction = 0;
+  if ~isfield(state,'converged_fraction') || isempty(state.converged_fraction)
+    state.converged_fraction = 0;
+  end
   
   %check to see if an initial population needs to be created
   tic;
@@ -333,88 +305,148 @@ end
 %initialize the candidate population for the upcoming generation
 function candidates = initializeCandidates(state,options)
   
-  if options.candidate_size_update < 0
-    start = max(options.candidate_size_bounds);
-    limit = min(options.candidate_size_bounds);
-  else
-    start = min(options.candidate_size_bounds);
-    limit = max(options.candidate_size_bounds);
-  end
+  %   %allow for growing and shinking candidate evaluations
+  %   if options.candidate_size_update < 0
+  %     start = max(options.candidate_size_bounds);
+  %     limit = min(options.candidate_size_bounds);
+  %   else
+  %     start = min(options.candidate_size_bounds);
+  %     limit = max(options.candidate_size_bounds);
+  %   end
+  %   rows = min(start + options.candidate_size_update*state.generation, limit);
   
-  rows = min(start + options.candidate_size_update*state.generation, limit);
+  rows = options.evals_per_gen;
   candidates = nan(rows,options.design_length);
 end
 
 %update state
 function state = updateState(state,options)
   
-  %trim candidates prior to prevent re-evaluation
-  for i=1:length(options.trimFunction)
-    state.candidates = options.trimFunction{i}(state,options);
-  end
-  
-  if size(state.candidates,1) > 0
+  if ~isempty(state.candidates)
+    %trim candidates prior to prevent re-evaluation
+    for i=1:length(options.trimFunction)
+      state.candidates = options.trimFunction{i}(state,options);
+    end
+    
     %evaluate candidates
     [objectives,constraints] = utility.evaluate(state,options);
     
     %save values
-    
     top = size(state.design_values,1)+1;
     bottom = size(state.candidates,1)+top-1;
     state.design_values(top:bottom,:) = state.candidates;
     state.objective_values(top:bottom,:) = objectives;
     state.constraint_values(top:bottom,:) = constraints;
     
+    %update ages
+    state.ages = state.ages+1;
+    state.ages(top:bottom,:) = zeros(bottom-top+1,1);
+    
     %compute the best possible rank of the new designs
-    state.ranks(top:bottom,:) = metric.nonDominationRank(objectives,constraints);
+    if options.constraint_length > 0
+      state.ranks(top:bottom,:) = metric.nonDominationRank(objectives,constraints);
+    else
+      state.ranks(top:bottom,:) = metric.nonDominationRank(objectives);
+    end
     
     %combine to get updated ranks
-    for i=1:options.active_fronts
+    for i=1:size(state.design_values,1)
       index = (state.ranks == i);
+      %check to see if we are out of rankings
+      if all(~index)
+        break;
+      end
+      %update ranks
       state.ranks(index,:) = metric.nonDominationRank(...
         state.objective_values(index,:),state.constraint_values(index,:)...
         ) + (i - 1);
+      %check to see if enough are ranked for the next evaluation %SAVES TIME
+      if nnz(state.ranks <= i) > options.evals_per_gen
+        %NaN non-ranked so the ranking isn't mis-used
+        state.rank(state.ranks > i) = NaN;
+        break;
+      end
     end
     
-    %denote inactive designs by NaN rank
-    active = (state.ranks <= options.active_fronts);
-    state.ranks(~active,:) = nan;
+    %update crowding distance per front
+    state.crowding_distances(top:bottom,1) = NaN;
+    for i=1:max(state.ranks)
+      index = (state.ranks == i);
+      state.crowding_distances(index,:) = ...
+        metric.crowdingDistance(state.objective_values(index,:));
+    end
     
-    %update crowding distance
-    state.crowding_distances(active,:) = ...
-      metric.crowdingDistance(state.objective_values(active,:));
-    state.crowding_distances(~active,:) = nan;
-    
-    %cut inactive designs if not in archival mode
-    if ~options.archive
-      state.design_values = state.design_values(active,:);
-      state.objective_values = state.objective_values(active,:);
-      state.constraint_values = state.constraint_values(active,:);
-      state.ranks = state.ranks(active,:);
-      state.crowding_distances = state.crowding_distances(active,:);
+    %cut any designs that fall outside the archive limit
+    if size(state.design_values,1) > options.archive_size
+      %initialize binary vector
+      keep = false(size(state.design_values,1),1);
+      
+      %keep ALL rank 1 points
+      keep(state.ranks == 1) = true;
+      
+      %check to see if more points are needed
+      if nnz(keep) < options.archive_size
+        
+        %identify stopping rank
+        for i=2:max(state.ranks)
+          if nnz(state.ranks <= i) == options.archive_size
+            keep(state.ranks <= i) = true;
+            break;
+          elseif nnz(state.ranks <= i) > options.archive_size
+            keep(state.ranks <= i) = true;
+            %go through current front and remove points one by one
+            while nnz(keep) > options.archive_size
+              %sort current front and remove member with smallest crowding dist
+              index = find(keep & state.ranks == i);
+              [null,sorted_index] = sortrows([...
+                -state.crowding_distances(index,:),...
+                state.ages(index,:)...
+                ]);
+              keep(index(sorted_index(end))) = false;
+              %update crowding distance for the remaining
+              index = (keep & state.ranks == i);
+              state.crowding_distances(index,:) = ...
+                metric.crowdingDistance(state.objective_values(index,:));
+            end
+            break;
+          elseif i == max(state.ranks)
+            keep(:) = true;
+            %go through current front and remove points one by one
+            while nnz(keep) > options.archive_size
+              %sort current front and remove member with smallest crowding dist
+              index = find(keep & isnan(state.ranks));
+              [null,sorted_index] = sortrows([...
+                -state.crowding_distances(index,:),...
+                state.ages(index,:)...
+                ]);
+              keep(index(sorted_index(end))) = false;
+              %update crowding distance for the remaining
+              index = (keep & isnan(state.ranks));
+              state.crowding_distances(index,:) = ...
+                metric.crowdingDistance(state.objective_values(index,:));
+            end
+            break;
+          end
+        end
+      end
+      %update archive
+      state.design_values = state.design_values(keep,:);
+      state.objective_values = state.objective_values(keep,:);
+      state.constraint_values = state.constraint_values(keep,:);
+      state.ages = state.ages(keep,:);
+      state.ranks = state.ranks(keep,:);
+      state.crowding_distances = state.crowding_distances(keep,:);
     end
     
     %calculate and store convergence information
     state.evaluations(state.generation+1,:) = size(state.candidates,1);
     
-    %when calculating new hypervolume,  scale if both bounds are present
-    lb = options.objective_lower_bound;
-    l_inf = isinf(lb);
-    ub = options.objective_upper_bound;
-    u_inf = isinf(ub);
-    bounded = (~l_inf & ~u_inf);
-    
-    %scale bounded variables
-    [null,f] = utility.getOptimal(state);
-    if any(bounded)
-      f(:,bounded) = utility.normalize(f(:,bounded),[lb(bounded);ub(bounded)]);
-    end
-    
     %calculate new hypervolume
-    ref = max(state.objective_values);
-    ref(~u_inf) = ub(~u_inf);
-    ref(bounded) = 1;
-    state.hypervolumes(state.generation+1,:) = metric.hypervolume(f,ref);
+    ref = options.objective_upper_bound;
+    index = isinf(ref);
+    ref(index) = max(state.objective_values(:,index));
+    state.hypervolumes(state.generation+1,:) = metric.hypervolume(...
+      utility.paretoFront(state),ref);
     
     %update number of stall generations
     if state.generation > 0 && abs(state.hypervolumes(end)-state.hypervolumes(end-1)) < options.tolerance
@@ -425,15 +457,15 @@ function state = updateState(state,options)
     
     %update vector storing the time used for each generation
     state.runtimes(state.generation+1,:) = toc;
-    
-    %value indicating how close the algorithm is to stopping
-    state.converged_fraction = max(...
-      [sum(state.evaluations)/options.max_evaluations,...
-      state.generation/options.max_generations,...
-      sum(state.runtimes)/options.max_runtime,...
-      state.stall_generations/options.max_stall_generations,...
-      state.hypervolumes(end)/options.hypervolume_target]);
   end
+  
+  %value indicating how close the algorithm is to stopping
+  state.converged_fraction = max(...
+    [sum(state.evaluations)/options.max_evaluations,...
+    (state.generation+1)/(options.max_generations+1),... %FIXME, currently hacked to stop 0/0 errors
+    sum(state.runtimes)/options.max_runtime,...
+    state.stall_generations/options.max_stall_generations,...
+    state.hypervolumes(end)/options.hypervolume_target]);
 end
 
 %cleanup function

@@ -4,27 +4,102 @@ function options = setOptions(options)
   %the following command.
   %
   %options = setOptions();
+  %
+  %=============================================================================
+  %               options | description
+  %                       | [ possible , and >default< values ]
+  %=============================================================================
+  %         design_length | the number of variables in the design string
+  %                       | [ positive integer , >0< ]
+  %    design_lower_bound | lower bound for each variable
+  %                       | [ vector , >-Inf< ]
+  %    design_upper_bound | upper bound for each variable
+  %                       | [ vector , >Inf< ]
+  %     discrete_variables | indicates which variables are integers
+  %                       | [ binary vector , >false< ]
+  %      objective_length | the number of objectives in the problem
+  %                       | [ positive integer , >0< ]
+  % objective_lower_bound | lower bound for each objective value, used to scale
+  %                       | objective space
+  %                       | [ vector , >-Inf< ]
+  % objective_upper_bound | upper bound for each objective value, used to scale
+  %                       | objective space
+  %                       | [ vector , >Inf< ]
+  %     constraint_length | number of constraints in the problem
+  %                       | [ positive integer , >0< ]
+  %          archive_size | max number of designs kept after each generation,
+  %                       | Note: ALL rank one points are kept regardless.
+  %                       | [integer value, >10*options.design_length<]
+  %         evals_per_gen | max number of candidates evaluated each generation
+  %                       | [ positive integer , >10*options.design_length< ]
+  %initializationFunction | the function(s) used to initialize the population if
+  %                       | no designs currently exist in the archive
+  %                       | [ custom function(s) , @initialization.random ,
+  %                       |  >@initialization.latinHypercube< ]
+  %     selectionFunction | the function(s) used to select designs for
+  %                       | reproduction
+  %                       | [ custom function(s) , @selection.roulette ,
+  %                       | >@selection.tournament< ]
+  %     crossoverFunction | the function(s) used to intermix the selected
+  %                       | design's genetic information
+  %                       | [ custom function(s) , @crossover.scattered ,
+  %                       | >@crossover.blended< ]
+  %      mutationFunction | the function(s) used to mutate the selected
+  %                       | design's genetic information
+  %                       | [ custom function(s) @mutation.uniform , 
+  %                       | @mutation.biased , >@mutation.adaptive< ]
+  %             tolerance | used to determine when two values are to be
+  %                       | considered identical
+  %                       | [ positive real , >1e-6< ]
+  %          trimFunction | the function used to prevent re-evaluation of
+  %                       | designs, NOTE if your simiulation is stochastic you
+  %                       | should use your own function
+  %                       | [ custom function(s) , >@trim.exactMatch< ]
+  %     objectiveFunction | the function(s) used to calculate the objective
+  %                       | value(s), will automatically set itself to the
+  %                       | function passed in
+  %                       | [ custom function ]
+  %       number_of_cores | specified the number objective function evaluations
+  %                       | that can take place in parralell
+  %                       | [ positive integer , >1< ]
+  %           show_output | used to turn off output and run in a batch mode
+  %                       | [ binary , >true< ]
+  %        outputFunction | used to display the progress of the algorithm
+  %                       | [custom function(s) , @output.convergence ,
+  %                       | @output.frontier , >@output.iteration< ]
+  %         otherFunction | function(s) called at the end of each generation
+  %                       | [ custom function(s) , >{}< ]
+  %       max_generations | maximum number of generations allowed
+  %                       | [ postitive integer , >100< ]
+  %       max_evaluations | maximum number of evaluations allowed
+  %                       | [ postitive integer , >Inf< ]
+  %           max_runtime | maximum amount of total runtime allowed in seconds
+  %                       | [ postive real , >60< ]
+  % max_stall_generations | maximum number of stall generations allowed
+  %                       | [ postitive integer , >10< ]
+  %    hypervolume_target | target hypervolume to stop at
+  %                       | [ postive real , >Inf< ]
+  %=============================================================================
   
   %TODO be able to parse options coming in as cells -> {'max_runtime',100}
   
   %check for input
   if ~exist('options','var') || ~isstruct(options)
     options = struct;
-  end
-  if ~isfield(options,'objectiveFunction')
+  elseif ~isfield(options,'objectiveFunction')
     options.objectiveFunction = {};
   end
   
   %number of variables in design string
   if ~isfield(options,'design_length') || isempty(options.design_length)
     if isempty(options.objectiveFunction)
-      options.design_length = [];
-    elseif isfield(options,'integer_variables') && ~isempty(options.integer_variables)
-      options.design_length = length(options.integer_variables);
-    elseif isfield(options,'design_lower_bound') && ~isempty(options.design_lower_bound)
-      options.design_length = length(options.design_lower_bound);
-    elseif isfield(options,'design_upper_bound') && ~isempty(options.design_upper_bound)
-      options.design_length = length(options.design_upper_bound);
+      options.design_length = 0;
+    elseif isfield(options,'integer') && ~isempty(options.integer)
+      options.design_length = length(options.integer);
+    elseif isfield(options,'lower_bound') && ~isempty(options.lower_bound)
+      options.design_length = length(options.lower_bound);
+    elseif isfield(options,'upper_bound') && ~isempty(options.upper_bound)
+      options.design_length = length(options.upper_bound);
     else
       user_input = inputdlg('How many design variables are there?');
       options.design_length = round(str2double(user_input{1}));
@@ -33,35 +108,23 @@ function options = setOptions(options)
   
   %lower bound on the design string
   if ~isfield(options,'design_lower_bound') || isempty(options.design_lower_bound)
-    if isempty(options.design_length)
-      options.design_lower_bound = [];
-    else
-      options.design_lower_bound = -Inf(1,options.design_length);
-    end
+    options.design_lower_bound = -Inf(1,options.design_length);
   end
   
   %upper bound on the design string
   if ~isfield(options,'design_upper_bound') || isempty(options.design_upper_bound)
-    if isempty(options.design_length)
-      options.design_upper_bound = [];
-    else
-      options.design_upper_bound = Inf(1,options.design_length);
-    end
+    options.design_upper_bound = Inf(1,options.design_length);
   end
   
-  %binary string indicating which variables are integers
-  if ~isfield(options,'integer_variables') || isempty(options.integer_variables)
-    if isempty(options.design_length)
-      options.integer_variables = [];
-    else
-      options.integer_variables = false(1,options.design_length);
-    end
+  %binary string indicating which variables are discrete
+  if ~isfield(options,'discrete_variables') || isempty(options.discrete_variables)
+    options.discrete_variables = false(1,options.design_length);
   end
   
   %number of objectives in problem
   if ~isfield(options,'objective_length') || isempty(options.objective_length)
     if isempty(options.objectiveFunction)
-      options.objective_length = [];
+      options.objective_length = 0;
     else
       x = options.design_lower_bound;
       x(isinf(x)) = 0;
@@ -72,26 +135,18 @@ function options = setOptions(options)
   
   %lower bound on objective values - used for scaling
   if ~isfield(options,'objective_lower_bound') || isempty(options.objective_lower_bound)
-    if isempty(options.objective_length)
-      options.objective_lower_bound = [];
-    else
-      options.objective_lower_bound = -Inf(1,options.objective_length);
-    end
+    options.objective_lower_bound = -Inf(1,options.objective_length);
   end
   
   %upper bound on objective values - used for scaling
   if ~isfield(options,'objective_upper_bound') || isempty(options.objective_upper_bound)
-    if isempty(options.objective_length)
-      options.objective_upper_bound = [];
-    else
-      options.objective_upper_bound = Inf(1,options.objective_length);
-    end
+    options.objective_upper_bound = Inf(1,options.objective_length);
   end
   
   %number of constraints in problem
-  if ~isfield(options,'constraint_length') || isempty(options.constraint_length) || options.constraint_length == 0
+  if ~isfield(options,'constraint_length') || isempty(options.constraint_length)
     if isempty(options.objectiveFunction)
-      options.constraint_length = [];
+      options.constraint_length = 0;
     else
       try
         x = options.design_lower_bound;
@@ -104,40 +159,14 @@ function options = setOptions(options)
     end
   end
   
-  %bounds on the number of designs in the candidate population
-  if ~isfield(options,'candidate_size_bounds') || isempty(options.candidate_size_bounds)
-    if isempty(options.design_length)
-      options.candidate_size_bounds = [];
-    else
-      options.candidate_size_bounds = ones(1,2)*10*options.design_length;
-    end
-  else
-    a = min(options.candidate_size_bounds);
-    b = max(options.candidate_size_bounds);
-    options.candidate_size_bounds = [a,b];
+  %max number of designs kept after each generation
+  if ~isfield(options,'archive_size') || isempty(options.archive_size)
+    options.archive_size = 10*options.design_length;
   end
   
-  %how many designs to add or subtract from the candidate population each generation
-  if ~isfield(options,'candidate_size_update') || isempty(options.candidate_size_update)
-    if isempty(options.design_length)
-      options.candidate_size_update = [];
-    else
-      options.candidate_size_update = 0;
-    end
-  end
-  
-  %maximum rank of frontier to keep active
-  if ~isfield(options,'active_fronts') || isempty(options.active_fronts)
-    if isempty(options.candidate_size_bounds)
-      options.active_fronts = [];
-    else
-      options.active_fronts = 2*max(options.candidate_size_bounds);
-    end
-  end
-  
-  %archive or delete inactive designs
-  if ~isfield(options,'archive') || isempty(options.archive)
-    options.archive = false;
+  %max number of candidates evaluated each generation
+  if ~isfield(options,'evals_per_gen') || isempty(options.evals_per_gen)
+    options.evals_per_gen = 10*options.design_length;
   end
   
   %set the default initialization function
@@ -154,14 +183,14 @@ function options = setOptions(options)
     options.selectionFunction = {options.selectionFunction};
   end
   
-  %set the default crossover functions
+  %set the default crossover function
   if ~isfield(options,'crossoverFunction') || isempty(options.crossoverFunction)
     options.crossoverFunction = {@crossover.blended};
   elseif isa(options.crossoverFunction,'function_handle')
     options.crossoverFunction = {options.crossoverFunction};
   end
   
-  %set the default mutation functions
+  %set the default mutation function
   if ~isfield(options,'mutationFunction') || isempty(options.mutationFunction)
     options.mutationFunction = {@mutation.adaptive};
   elseif isa(options.mutationFunction,'function_handle')
@@ -206,7 +235,7 @@ function options = setOptions(options)
   end
   
   %set default other function to empty - this is primarily for the user
-  if ~isfield(options,'otherFunction') || isempty(options.otherFunction)
+  if ~isfield(options,'otherFunction') || isemtpy(options.otherFunction)
     options.otherFunction = {};
   elseif isa(options.otherFunction,'function_handle')
     options.otherFunction = {options.otherFunction};

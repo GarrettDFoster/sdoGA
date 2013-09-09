@@ -1,4 +1,4 @@
-function frontier(state,options)
+function frontier(state,options)  
   %figure out how many dimensions
   if options.objective_length == 1
     output.convergence(state,options);
@@ -13,6 +13,7 @@ function frontier(state,options)
         ylabel(sprintf('f%i',i));
       end
     end
+    title(sprintf('Generation #%i',state.generation));
     drawnow;
-  end
+  end  
 end

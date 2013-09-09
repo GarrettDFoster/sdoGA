@@ -4,7 +4,7 @@ function candidates = blended(state,options)
   
   for i=1:2:rows
     for j = 1:cols
-      if options.integer_variables(j)
+      if options.discrete_variables(j)
         %scattered for integer values
         if(rand > 0.5)
           tmp = candidates(i,j);

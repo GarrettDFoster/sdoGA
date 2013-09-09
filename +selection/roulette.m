@@ -1,23 +1,9 @@
 function candidates = roulette(state,options)
   
+  %FIXME account for all the bad designs in archival mode...perhaps only grab the top x portion of the pop?
+  
   %initialize sizing variables
   [rows,cols] = size(state.candidates);
-  
-  %get active sub-population
-  active = ~isnan(state.ranks);
-  state.ranks = state.ranks(active,:);
-  state.design_values = state.design_values(active,:);
-  state.crowding_distances = state.crowding_distances(active,:);
-  
-  %figure out how big the sub-population needs to be
-  pop_size = min(sum(active),rows*2);
-  
-  %trim the sub-population
-  [null,index] = sortrows([state.ranks,-1*state.crowding_distances]);
-  index = index(1:pop_size);
-  state.ranks = state.ranks(index);
-  state.design_values = state.design_values(index,:);
-  state.crowding_distances = state.crowding_distances(index,:);
   
   %build the wheel
   proportion = ((max(state.ranks)-state.ranks+1)/max(state.ranks)) + ...

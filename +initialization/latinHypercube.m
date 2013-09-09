@@ -1,10 +1,11 @@
 function candidates = latinHypercube(state,options)
   %get sizing information
-  if options.candidate_size_update < 0
-    rows = max(options.candidate_size_bounds);
-  else
-    rows = min(options.candidate_size_bounds);
-  end
+%   if options.candidate_size_update < 0
+%     rows = max(options.candidate_size_bounds);
+%   else
+%     rows = min(options.candidate_size_bounds);
+%   end
+  rows = options.evals_per_gen;
   cols = options.design_length;
   
   %get bounds
@@ -22,7 +23,7 @@ function candidates = latinHypercube(state,options)
   
   %round off integers
   for i=1:options.design_length
-    if options.integer_variables(i)
+    if options.discrete_variables(i)
       candidates(:,i) = round(candidates(:,i));
     end
   end

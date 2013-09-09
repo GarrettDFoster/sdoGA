@@ -1,4 +1,4 @@
-function rank = nonDominationRank(objectives,varargin)
+function rank = nonDominationRank(objectives,constraints,max_rank)
   %nonDominationRank ranks designs by first dividing the constraint space into
   %frontiers and then sub-dividing those into more frontiers in the objective
   %space. It assumes minimzation and lower rank is better.
@@ -15,27 +15,15 @@ function rank = nonDominationRank(objectives,varargin)
   %intialize sizing variables
   [rows,cols] = size(objectives);
   
-  if nargin == 1
-    constraints = [];
-    max_rank = [];
-  elseif nargin == 2
-    if numel(varargin{1}) > 1
-      constraints = varargin{1};
-      max_rank = [];
-    else
+  %check for unset variables
+  if ~exist('constraints','var')
       constraints = [];
-      max_rank = varargin{1};
-    end
-  elseif nargin == 3
-    if numel(varargin{1}) > 1
-      constraints = varargin{1};
-      max_rank = varargin{2};
-    else
-      constraints = varargin{2};
-      max_rank = varargin{1};
-    end
   end  
+  if ~exist('max_rank','var')
+      max_rank = [];
+  end
   
+  %rank by constraints
   if isempty(constraints)
     constraint_rank = ones(rows,1);
   elseif size(constraints,2) == 1

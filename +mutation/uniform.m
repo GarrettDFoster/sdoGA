@@ -25,7 +25,7 @@ function candidates = uniform(state,options)
   
   %round off integers
   for j=1:cols
-    if options.integer_variables(j)
+    if options.discrete_variables(j)
       candidates(:,j) = round(candidates(:,j));
     end
   end

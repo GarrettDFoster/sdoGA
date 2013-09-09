@@ -22,7 +22,7 @@ function candidates = random(state,options)
   
   %round off integers
   for i=1:options.design_length
-    if options.integer_variables(i)
+    if options.discrete_variables(i)
       candidates(:,i) = round(candidates(:,i));
     end
   end
