@@ -11,6 +11,6 @@ To continue from a previous run, just update the convergence criteria in the opt
 
     [state,options] = GA(objectiveFunction,options,state)
 
-To customize the algorithm you can change the items in the options structure. You also get a default options structure by running the following command.
+To customize the algorithm you can change the items in the options structure. To get a default options structure, run the following command.
 
     options = utility.setOptions();
