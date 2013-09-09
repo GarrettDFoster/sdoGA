@@ -1,0 +1,23 @@
+function iteration(state,options)
+  
+  elapsed_time = sum(state.runtimes);
+  total_time = elapsed_time/state.converged_fraction;
+  total_hours = floor(total_time/3600);
+  total_minutes = floor(total_time/60) - total_hours*60;
+  total_seconds = floor(total_time) ...
+    -total_hours*3600 ...
+    -total_minutes*60;
+  
+  time_left = total_time-elapsed_time;
+  hours_left = floor(time_left/3600);
+  minutes_left = floor(time_left/60) - hours_left*60;
+  seconds_left = floor(time_left) ...
+    -hours_left*3600 ...
+    -minutes_left*60;
+  
+  fprintf('Generation: %i | Hypervolume: %g | Time Remaining: %i:%i:%i of %i:%i:%i\n',...
+    state.generation,state.hypervolumes(end),...
+    hours_left,minutes_left,seconds_left,...
+    total_hours,total_minutes,total_seconds);
+end
+
