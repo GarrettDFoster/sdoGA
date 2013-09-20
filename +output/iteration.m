@@ -1,6 +1,6 @@
 function iteration(state,options)
   
-  elapsed_time = sum(state.runtimes);
+  elapsed_time = sum(state.runtime_per_gen);
   total_time = elapsed_time/state.converged_fraction;
   total_hours = floor(total_time/3600);
   total_minutes = floor(total_time/60) - total_hours*60;
@@ -16,7 +16,7 @@ function iteration(state,options)
     -minutes_left*60;
   
   fprintf('Generation: %i | Hypervolume: %g | Time Remaining: %i:%i:%i of %i:%i:%i\n',...
-    state.generation,state.hypervolumes(end),...
+    state.generation,state.hypervolume_per_gen(end),...
     hours_left,minutes_left,seconds_left,...
     total_hours,total_minutes,total_seconds);
 end

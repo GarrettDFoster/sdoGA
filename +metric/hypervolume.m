@@ -1,60 +1,66 @@
-function volume = hypervolume(objectives,reference)
+function vol = hypervolume(obj_vals,ref)
   %HYPERVOLUME is a single metric used to compare frontiers.
   %assumes minimization
   %
   %author: Garrett Foster <garrett.d.foster@gmail.com>
-  %version: 2013.03.20
   
-  %cut objectives that are larger than the reference point %TODO could I remove this if I used absolute values???
-  cols = size(objectives,2);
-  for j=1:cols
-    objectives = objectives(objectives(:,j) < reference(:,j),:);
+  %assign ref if one isn't given
+  if ~exist('ref','var') || isempty(ref)
+    ref = max(obj_vals);
   end
   
-  volume = rHypervolume(objectives,reference);
+  %modify objectives that are larger than the reference point
+  cols = size(obj_vals,2);
+  for j=1:cols
+    vec = obj_vals(:,j);
+    index = vec > ref(j);
+    obj_vals(index,j) = ref(j);
+  end
+  
+  vol = rHypervolume(obj_vals,ref);
   
 end
 
-function volume = rHypervolume(objectives,reference)
+function vol = rHypervolume(obj_vals,ref)
   
-  %remove any redundant objectives
-  objectives = unique(objectives,'rows');
+  %remove any redundant objective entries
+  obj_vals = unique(obj_vals,'rows');
   
   %use only non-dominated points
-  rank = metric.nonDominationRank(objectives);
-  objectives = objectives(rank==1,:);
-  [rows,cols] = size(objectives);
+  rank = metric.nonDominatedRank(obj_vals);
+  obj_vals = obj_vals(rank==1,:);
+  [rows,cols] = size(obj_vals);
   
   if rows == 1 %base case
-    volume = prod(reference - objectives); %TODO if i put absolute value here, I may be able to go around reference
+    vol = prod(ref - obj_vals);
   else
     
     if cols >= 4
       %sort objectives based on number of points remaining on front after eval -> smallest to largest
       points_left = nan(1,cols);
       for j=1:cols
-        subset = objectives;
+        subset = obj_vals;
         subset(:,j) = [];
-        rank = metric.nonDominationRank(subset);
+        rank = metric.nonDominatedRank(subset);
         points_left(j) = nnz(rank == 1);
       end
       [null,sort_index] = sort(points_left);
-      objectives = objectives(:,sort_index);
+      obj_vals = obj_vals(:,sort_index);
     end
     
     %sort worsening -> assuming minimization -> large to small -> descending
-    objectives = sortrows(objectives,-1);
+    obj_vals = sortrows(obj_vals,-1);
     
     %slice and get intermediate hypervolume
     slice_volumes = nan(rows,1);
     for i=1:rows
-      subset = objectives(i:end,2:end);
-      slice_volumes(i) = rHypervolume(subset,reference(:,2:end));
+      subset = obj_vals(i:end,2:end);
+      slice_volumes(i) = rHypervolume(subset,ref(:,2:end));
     end
     
     %combine and calculate total hypervolume
-    slice_depths = [reference(1);objectives(1:end-1,1)]-objectives(:,1);
-    volume = slice_volumes' * slice_depths;
+    slice_depths = [ref(1);obj_vals(1:end-1,1)]-obj_vals(:,1);
+    vol = slice_volumes' * slice_depths;
     
   end
 end

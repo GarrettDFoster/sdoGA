@@ -1,7 +1,16 @@
+clear
+clc
+
 %a simple example of how to setup and run the SDO Genetic Algorithm
 
 %first lets grab the default options structure
-options = utility.setOptions;
+options = utility.setOptions();
+
+%lets tell it how many many objectives, constraints, and variables are in the
+%example problem
+options.number_of_objectives = 1;
+options.number_of_constraints = 0;
+options.number_of_variables = 2;
 
 %now lets update it so that it plots the convergence along with the iteration 
 %text output. Note that multiple functions are entered using a cell array. The 
@@ -10,8 +19,8 @@ options.outputFunction = {@output.iteration, @output.convergence};
 
 %if we define the bounds on the design space the algorithm should do better.
 %In this exampel we have 2 design variables.
-options.design_lower_bound = [-1,-2.5];
-options.design_upper_bound = [2.5,1];
+options.variable_lower_bound = [-1,-2.5];
+options.variable_upper_bound = [2.5,1];
 
 %Now we can solve our objective function, which in this example is a simple 
 %2-norm calculation. To do this we call the main algorithm function and pass in
@@ -38,7 +47,8 @@ state = sdoGA(@norm,options,state);
 %Finally, if we want to see just the optimal designs and performance we can use
 %a utility function. In this case we are grabbing the optimal design values as
 %well as the associated objective values. We expect the optimum to occur at 0,0. 
-[x,f] = utility.getOptimal(state);
+x = state.variable_tbl(state.optimal_index,:);
+f = state.objective_tbl(state.optimal_index,:);
 
 
 

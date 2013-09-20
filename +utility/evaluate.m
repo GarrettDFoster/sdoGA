@@ -10,17 +10,17 @@ function [objectives,constraints] = evaluate(state,options)
   %[objectives,constraints] = evaluate(array,options)
   
   if isstruct(state)
-    designs = state.candidates;
+    designs = state.candidate_tbl;
   elseif isnumeric(state)
     designs = state;
   end
   
   rows = size(designs,1);
-  objectives = nan(rows,options.objective_length);
-  constraints = nan(rows,options.constraint_length);
-  objFun = options.objectiveFunction;
+  objectives = nan(rows,options.number_of_objectives);
+  constraints = nan(rows,options.number_of_constraints);
+  objFun = options.analysisFunction;
   
-  if options.constraint_length
+  if options.number_of_constraints
     parfor i=1:rows
       [objectives(i,:),constraints(i,:)] = objFun(designs(i,:));
     end

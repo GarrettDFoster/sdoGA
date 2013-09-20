@@ -13,7 +13,7 @@ function candidates = adaptive(state,options)
   %   end
   
   %get sizing variables
-  candidates = state.candidates;
+  candidates = state.candidate_tbl;
   [rows,cols] = size(candidates);
   
   %replace real bits
@@ -25,13 +25,13 @@ function candidates = adaptive(state,options)
   candidates(i) = mutated_bits(i);
   
   %format bounds of space
-  lb = options.design_lower_bound;
+  lb = options.variable_lower_bound;
   i = isinf(lb);
-  lb(i) = min(state.design_values(:,i));
+  lb(i) = min(state.variable_tbl(:,i));
   lb(i) = lb(i) - abs(lb(i))*1.5;
-  ub = options.design_upper_bound;
+  ub = options.variable_upper_bound;
   i = isinf(ub);
-  ub(i) = max(state.design_values(:,i));
+  ub(i) = max(state.variable_tbl(:,i));
   ub(i) = ub(i) + abs(ub(i))*1.5;
   
   %replace integer bits
@@ -42,8 +42,8 @@ function candidates = adaptive(state,options)
   
   %check that bounds are NOT violated
   for j=1:cols
-    candidates(candidates(:,j) > options.design_upper_bound(j),j) = options.design_upper_bound(j);
-    candidates(candidates(:,j) < options.design_lower_bound(j),j) = options.design_lower_bound(j);
+    candidates(candidates(:,j) > options.variable_upper_bound(j),j) = options.variable_upper_bound(j);
+    candidates(candidates(:,j) < options.variable_lower_bound(j),j) = options.variable_lower_bound(j);
   end
   
   %round off integers

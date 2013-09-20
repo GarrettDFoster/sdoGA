@@ -1,5 +1,5 @@
 function candidates = blended(state,options)
-  candidates = state.candidates;
+  candidates = state.candidate_tbl;
   [rows,cols] = size(candidates);
   
   for i=1:2:rows
@@ -26,16 +26,16 @@ function candidates = blended(state,options)
         candidates(i,j) = lower + range*rand;
         candidates(i+1,j) = lower + range*rand;
         
-        if candidates(i,j) > options.design_upper_bound(j)
-          candidates(i,j) = options.design_upper_bound(j);
-        elseif candidates(i,j) < options.design_lower_bound(j)
-          candidates(i,j) = options.design_lower_bound(j);
+        if candidates(i,j) > options.variable_upper_bound(j)
+          candidates(i,j) = options.variable_upper_bound(j);
+        elseif candidates(i,j) < options.variable_lower_bound(j)
+          candidates(i,j) = options.variable_lower_bound(j);
         end
         
-        if candidates(i+1,j) > options.design_upper_bound(j)
-          candidates(i+1,j) = options.design_upper_bound(j);
-        elseif candidates(i+1,j) < options.design_lower_bound(j)
-          candidates(i+1,j) = options.design_lower_bound(j);
+        if candidates(i+1,j) > options.variable_upper_bound(j)
+          candidates(i+1,j) = options.variable_upper_bound(j);
+        elseif candidates(i+1,j) < options.variable_lower_bound(j)
+          candidates(i+1,j) = options.variable_lower_bound(j);
         end
       end
     end

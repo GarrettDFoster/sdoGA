@@ -4,22 +4,22 @@ function candidates = tournament(state,options)
   tournament_size = 4;
   
   %initialize sizing variables
-  [rows,cols] = size(state.candidates);
+  [rows,cols] = size(state.candidate_tbl);
   
-  %grab elite portion of the state encase we are in archival mode
-  [null,index] = sortrows([state.ranks,-state.crowding_distances,state.ages]);
-  index = index(1:min(size(state.design_values,1),rows*tournament_size));
-  state.design_values = state.design_values(index,:);
-  state.ranks = state.ranks(index,:);
-  state.crowding_distances = state.crowding_distances(index,:);
+  %grab elite portion of the state in case we are in archival mode
+  [null,index] = sortrows([-state.optimal_index,-state.hypervolume_list,-state.birth_gen_list]);
+  index = index(1:min(size(state.variable_tbl,1),rows*tournament_size));
+  state.variable_tbl = state.variable_tbl(index,:);
+  state.optimal_index = state.optimal_index(index,:);
+  state.hypervolume_list = state.hypervolume_list(index,:);
   
   %perform tournaments until candidates is filled
   for i=1:rows
     j = randi([1,rows],[tournament_size,1]);
-    [null k] = sortrows([state.ranks(j),-1*state.crowding_distances(j)]);
-    state.candidates(i,:) = state.design_values(j(k(1)),:);
+    [null k] = sortrows([-state.optimal_index(j),-1*state.hypervolume_list(j)]);
+    state.candidate_tbl(i,:) = state.variable_tbl(j(k(1)),:);
   end
   
   %return
-  candidates = state.candidates;
+  candidates = state.candidate_tbl;
 end

@@ -5,12 +5,12 @@ function candidates = latinHypercube(state,options)
 %   else
 %     rows = min(options.candidate_size_bounds);
 %   end
-  rows = options.evals_per_gen;
-  cols = options.design_length;
+  rows = options.number_of_candidates;
+  cols = options.number_of_variables;
   
   %get bounds
-  lb = options.design_lower_bound;
-  ub = options.design_upper_bound;
+  lb = options.variable_lower_bound;
+  ub = options.variable_upper_bound;
   l_inf = isinf(lb);
   u_inf = isinf(ub);
   
@@ -22,7 +22,7 @@ function candidates = latinHypercube(state,options)
   candidates = lhsdesign(rows,cols).*repmat(ub-lb,rows,1) + repmat(lb,rows,1);
   
   %round off integers
-  for i=1:options.design_length
+  for i=1:cols
     if options.discrete_variables(i)
       candidates(:,i) = round(candidates(:,i));
     end
