@@ -51,11 +51,11 @@ function options = setOptions(options)
   %                       | design's genetic information
   %                       | [ custom function(s) , @mutation.uniform ,
   %                       | @mutation.biased , >@mutation.adaptive< ]
-  %          trimFunction | the function used to prevent re-evaluation of
-  %                       | designs, NOTE if your simulation is stochastic you
-  %                       | should use your own function
-  %                       | [ custom function(s) , >@trim.exactMatch< ]
-  %        outputFunction | used to display the progress of the algorithm
+  %    preprocessFunction | the function used to pre-process the designs,
+  %                       | default usage is to prevent re-evaluation of designs
+  %                       | [ custom function(s) , >@trim.exactMatchTrim< ]
+  %        outputFunction | used to display the progress of the algorithm, if no
+  %                       | ouput is desired then input an empty cell
   %                       | [custom function(s) , @output.convergence ,
   %                       | @output.frontier , >@output.iteration< ]
   %         otherFunction | function(s) called at the end of each generation
@@ -212,13 +212,13 @@ function options = setOptions(options)
     options.mutationFunction = {options.mutationFunction};
   end
   
-  %set default trim function
-  if ~isfield(options,'trimFunction')
-    options.trimFunction = {@trim.exactMatch};
-  elseif  isemptyc(options.trimFunction)
-    options.trimFunction = {};
-  elseif isa(options.trimFunction,'function_handle')
-    options.trimFunction = {options.trimFunction};
+  %set default preprocess function
+  if ~isfield(options,'preprocessFunction')
+    options.preprocessFunction = {@preprocess.exactMatchTrim};
+  elseif  isemptyc(options.preprocessFunction)
+    options.preprocessFunction = {};
+  elseif isa(options.preprocessFunction,'function_handle')
+    options.preprocessFunction = {options.preprocessFunction};
   end
   
   %set default output function

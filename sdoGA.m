@@ -61,10 +61,9 @@ function [state,options] = sdoGA(analysisFunction,options,state)
   %                       | design's genetic information
   %                       | [ custom function(s) , @mutation.uniform ,
   %                       | @mutation.biased , >@mutation.adaptive< ]
-  %          trimFunction | the function used to prevent re-evaluation of
-  %                       | designs, NOTE if your simulation is stochastic you
-  %                       | should use your own function
-  %                       | [ custom function(s) , >@trim.exactMatch< ]
+  %    preprocessFunction | the function used to pre-process the designs,
+  %                       | default usage is to prevent re-evaluation of designs
+  %                       | [ custom function(s) , >@trim.exactMatchTrim< ]
   %        outputFunction | used to display the progress of the algorithm, if no
   %                       | ouput is desired then input an empty cell
   %                       | [custom function(s) , @output.convergence ,
@@ -89,6 +88,7 @@ function [state,options] = sdoGA(analysisFunction,options,state)
   %=============================================================================
   %         generation | integer indicating the current generation number
   %      candidate_tbl | array storing designs to be evaluated
+  %     population_tbl | array storing active designs
   %       variable_tbl | array storing variable values of archived designs
   %      objective_tbl | array storing objective values of archived designs
   %     constraint_tbl | array storing constraint values of archived designs
@@ -309,9 +309,9 @@ function state = updateState(state,options)
   state.generation = state.generation + 1;
   
   if ~isempty(state.candidate_tbl)
-    %trim candidates prior to prevent re-evaluation
-    for i=1:length(options.trimFunction)
-      state.candidate_tbl = options.trimFunction{i}(state,options);
+    %preprocess candidates prior to evaluation
+    for i=1:length(options.preprocessFunction)
+      state.candidate_tbl = options.preprocessFunction{i}(state,options);
     end
     
     %evaluate candidates
