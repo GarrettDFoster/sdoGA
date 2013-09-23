@@ -5,7 +5,7 @@ function options = setOptions(options)
   %
   %options = utility.setOptions();
   %
-  %=============================================================================
+    %=============================================================================
   %               options | description
   %                       | [ possible , and >default< values ]
   %=============================================================================
@@ -27,30 +27,25 @@ function options = setOptions(options)
   %       reference_point | vector indicating point in objective space that
   %                       | hypervolume is measured from
   %                       | [ vector, >[]< ]
-  %  number_of_candidates | max number of candidates evaluated each generation
+  %       population_size | number of designs kept in active population
   %                       | [ positive integer ,
   %                       |  >10*options.number_of_variables< ]
-  %       number_of_cores | specified the number objective function evaluations
+  %       number_of_cores | specified the number of analysisFunction evaluations
   %                       | that can take place in parralell
   %                       | [ positive integer , >1< ]
-  %          archive_size | max number of designs kept in archive after each gen
-  %                       | [integer value, >10*options.number_of_variables<]
   %initializationFunction | the function(s) used to initialize the population if
   %                       | no designs currently exist in the archive
-  %                       | [ custom function(s) , @initialization.random ,
+  %                       | [ custom function(s) ,
   %                       |  >@initialization.latinHypercube< ]
   %     selectionFunction | the function(s) used to select designs for
   %                       | reproduction
-  %                       | [ custom function(s) , @selection.roulette ,
-  %                       | >@selection.tournament< ]
+  %                       | [ custom function(s) , >@selection.tournament< ]
   %     crossoverFunction | the function(s) used to intermix the selected
   %                       | design's genetic information
-  %                       | [ custom function(s) , @crossover.scattered ,
-  %                       | >@crossover.blended< ]
+  %                       | [ custom function(s) , >@crossover.scattered< ]
   %      mutationFunction | the function(s) used to mutate the selected
   %                       | design's genetic information
-  %                       | [ custom function(s) , @mutation.uniform ,
-  %                       | @mutation.biased , >@mutation.adaptive< ]
+  %                       | [ custom function(s) , >@mutation.uniform< ]
   %    preprocessFunction | the function used to pre-process the designs,
   %                       | default usage is to prevent re-evaluation of designs
   %                       | [ custom function(s) , >@trim.exactMatchTrim< ]
@@ -145,12 +140,12 @@ function options = setOptions(options)
     options.reference_point = [];
   end
   
-  %max number of candidates evaluated each generation
-  if ~isfield(options,'number_of_candidates') || isempty(options.number_of_candidates)
+  %number of designs in population each generation
+  if ~isfield(options,'population_size') || isempty(options.population_size)
     if isempty(options.number_of_variables)
-      options.number_of_candidates = [];
+      options.population_size = [];
     else
-      options.number_of_candidates = 10*options.number_of_variables;
+      options.population_size = 10*options.number_of_variables;
     end
   end
   
@@ -164,15 +159,6 @@ function options = setOptions(options)
     catch
       matlabpool close force
       matlabpool('open',min(getenv('NUMBER_OF_PROCESSORS'),options.number_of_cores));
-    end
-  end
-  
-  %max number of designs kept after each generation
-  if ~isfield(options,'archive_size') || isempty(options.archive_size)
-    if isempty(options.number_of_variables)
-      options.archive_size = [];
-    else
-      options.archive_size = 10*options.number_of_variables;
     end
   end
   
@@ -196,7 +182,7 @@ function options = setOptions(options)
   
   %set the default crossover function
   if ~isfield(options,'crossoverFunction')
-    options.crossoverFunction = {@crossover.blended};
+    options.crossoverFunction = {@crossover.scattered};
   elseif  isemptyc(options.crossoverFunction)
     options.crossoverFunction = {};
   elseif isa(options.crossoverFunction,'function_handle')
@@ -205,7 +191,7 @@ function options = setOptions(options)
   
   %set the default mutation function
   if ~isfield(options,'mutationFunction')
-    options.mutationFunction = {@mutation.adaptive};
+    options.mutationFunction = {@mutation.uniform};
   elseif  isemptyc(options.mutationFunction)
     options.mutationFunction = {};
   elseif isa(options.mutationFunction,'function_handle')

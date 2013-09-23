@@ -5,18 +5,22 @@ function candidates = uniform(state,options)
   mutation_rate = 0.05;
   
   %get sizing variables
-  candidates = state.candidates;
+  candidates = state.candidate_tbl;
   [rows,cols] = size(candidates);
   
   %format bounds of space
-  lb = options.design_lower_bound;
+  lb = options.variable_lower_bound;
+  ub = options.variable_upper_bound;
+  
+  %bound any infinite bounds using mean and stdev
+  pop = state.variable_tbl(state.population_index,:);
+  i = all(isfinite(pop),2);
+  avg = mean(state.variable_tbl(i,:));
+  stdev = std(state.variable_tbl(i,:));  
   i = isinf(lb);
-  lb(i) = min(state.design_values(:,i));
-  lb(i) = lb(i) - abs(lb(i))*1.5;
-  ub = options.design_upper_bound;
+  lb(i) = avg(i) - 2*stdev(i);  
   i = isinf(ub);
-  ub(i) = max(state.design_values(:,i));
-  ub(i) = ub(i) + abs(ub(i))*1.5;
+  ub(i) = avg(i) + 2*stdev(i);
   
   %replace bits
   mutated_bits = repmat(lb,rows,1) + rand(rows,cols).*repmat(ub-lb,rows,1);

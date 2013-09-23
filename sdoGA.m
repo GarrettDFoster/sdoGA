@@ -37,30 +37,25 @@ function [state,options] = sdoGA(analysisFunction,options,state)
   %       reference_point | vector indicating point in objective space that
   %                       | hypervolume is measured from
   %                       | [ vector, >[]< ]
-  %  number_of_candidates | max number of candidates evaluated each generation
+  %       population_size | number of designs kept in active population
   %                       | [ positive integer ,
   %                       |  >10*options.number_of_variables< ]
-  %       number_of_cores | specified the number objective function evaluations
+  %       number_of_cores | specified the number of analysisFunction evaluations
   %                       | that can take place in parralell
   %                       | [ positive integer , >1< ]
-  %          archive_size | max number of designs kept in archive after each gen
-  %                       | [integer value, >10*options.number_of_variables<]
   %initializationFunction | the function(s) used to initialize the population if
   %                       | no designs currently exist in the archive
-  %                       | [ custom function(s) , @initialization.random ,
+  %                       | [ custom function(s) ,
   %                       |  >@initialization.latinHypercube< ]
   %     selectionFunction | the function(s) used to select designs for
   %                       | reproduction
-  %                       | [ custom function(s) , @selection.roulette ,
-  %                       | >@selection.tournament< ]
+  %                       | [ custom function(s) , >@selection.tournament< ]
   %     crossoverFunction | the function(s) used to intermix the selected
   %                       | design's genetic information
-  %                       | [ custom function(s) , @crossover.scattered ,
-  %                       | >@crossover.blended< ]
+  %                       | [ custom function(s) , >@crossover.scattered< ]
   %      mutationFunction | the function(s) used to mutate the selected
   %                       | design's genetic information
-  %                       | [ custom function(s) , @mutation.uniform ,
-  %                       | @mutation.biased , >@mutation.adaptive< ]
+  %                       | [ custom function(s) , >@mutation.uniform< ]
   %    preprocessFunction | the function used to pre-process the designs,
   %                       | default usage is to prevent re-evaluation of designs
   %                       | [ custom function(s) , >@trim.exactMatchTrim< ]
@@ -88,14 +83,15 @@ function [state,options] = sdoGA(analysisFunction,options,state)
   %=============================================================================
   %         generation | integer indicating the current generation number
   %      candidate_tbl | array storing designs to be evaluated
-  %     population_tbl | array storing active designs
   %       variable_tbl | array storing variable values of archived designs
   %      objective_tbl | array storing objective values of archived designs
   %     constraint_tbl | array storing constraint values of archived designs
-  %     birth_gen_list | vector storing initial generation of archived designs
-  %      optimal_index | binary vector indicating which archived designs are on
-  %                    | the pareto frontier
-  %   hypervolume_list | vector storing the hypervolume contribution per design
+  %   initial_gen_list | vector storing initial gen in pop of archived designs
+  %     final_gen_list | vector storing final gen in pop of archived designs
+  %   population_index | binary vector indicating which archived designs are in 
+  %                    | active population
+  %          rank_list | vector indicating frontier of each population member
+  % crowding_dist_list | vector storing the crowding distance of optimal members
   %evaluations_per_gen | vector storing the number of evaluations performed in
   %                    | each generation
   %    runtime_per_gen | vector storing the time (seconds) required for each gen
@@ -214,18 +210,28 @@ function state = setState(state,options)
   end
   
   %vector storing initial generation of archived designs
-  if ~isfield(state,'birth_gen_list')
-    state.birth_gen_list = [];
+  if ~isfield(state,'initial_gen_list')
+    state.initial_gen_list = [];
   end
   
-  %binary vector indicating which archived designs are on the pareto frontier
-  if ~isfield(state,'optimal_index')
-    state.optimal_index = false(0);
+  %vector storing final gen in pop of archived designs
+  if ~isfield(state,'final_gen_list')
+    state.final_gen_list = [];
   end
   
-  %vector storing the hypervolume contribution per design
-  if ~isfield(state,'hypervolume_list')
-    state.hypervolume_list = [];
+  %binary vector indicating which archived designs are in the active population
+  if ~isfield(state,'population_index')
+    state.population_index = false(0);
+  end
+  
+  %vector indicating frontier of each population member
+  if ~isfield(state,'rank_list')
+    state.rank_list = [];
+  end
+  
+  %vector storing the crowding distance of optimal designs
+  if ~isfield(state,'crowding_dist_list')
+    state.crowding_dist_list = [];
   end
   
   %vector storing the number of evaluations performed in each generation
@@ -285,19 +291,8 @@ function state = setState(state,options)
 end
 
 %initialize the candidate population for the upcoming generation
-function candidates = initCandidateTbl(options)
-  
-  %   %allow for growing and shinking candidate evaluations
-  %   if options.candidate_size_update < 0
-  %     start = max(options.candidate_size_bounds);
-  %     limit = min(options.candidate_size_bounds);
-  %   else
-  %     start = min(options.candidate_size_bounds);
-  %     limit = max(options.candidate_size_bounds);
-  %   end
-  %   rows = min(start + options.candidate_size_update*state.generation, limit);
-  
-  rows = options.number_of_candidates;
+function candidates = initCandidateTbl(options)  
+  rows = options.population_size;
   cols = options.number_of_variables;
   candidates = nan(rows,cols);
 end
@@ -309,13 +304,14 @@ function state = updateState(state,options)
   state.generation = state.generation + 1;
   
   if ~isempty(state.candidate_tbl)
+    
     %preprocess candidates prior to evaluation
     for i=1:length(options.preprocessFunction)
       state.candidate_tbl = options.preprocessFunction{i}(state,options);
     end
     
     %evaluate candidates
-    [objectives,constraints] = utility.evaluate(state,options);
+    [objectives,constraints] = evaluate(state,options);
     
     %save values
     top = size(state.variable_tbl,1)+1;
@@ -324,65 +320,51 @@ function state = updateState(state,options)
     state.objective_tbl(top:bottom,:) = objectives;
     state.constraint_tbl(top:bottom,:) = constraints;
     
-    %update birth generation list
-    state.birth_gen_list(top:bottom,:) = state.generation;
+    %indicate candidates have been added to population
+    state.population_index(top:bottom,:) = true;
+    
+    %update initial generation list
+    state.initial_gen_list(top:bottom,:) = state.generation;
     
     %compute the best possible rank of the new designs
-    rank = metric.nonDominatedRank(objectives,constraints);
+    state.rank_list(top:bottom,:) = metric.nonDominatedRank(objectives,constraints);
     
-    %combine to get sudo-index of pareto set
-    state.optimal_index = [state.optimal_index;rank==1];
-    
-    %re-rank sudo-pareto set
-    rank = metric.nonDominatedRank(...
-      state.objective_tbl(state.optimal_index,:),...
-      state.constraint_tbl(state.optimal_index,:)...
-    );
-    
-    %update optimal index
-    state.optimal_index(state.optimal_index) = (rank == 1);
-    
-    %calculated hypervolume contribution of each point
-    cont = metric.inducedFrontHypervolume(...
-      state.objective_tbl,...
-      state.objective_tbl(state.optimal_index,:),...
-      options.reference_point...
-    );
-    cont(state.optimal_index,:) = cont(state.optimal_index,:) + ...
-      metric.hypervolumeContribution(...
-        state.objective_tbl(state.optimal_index,:),...
-        options.reference_point...
-      );
-    
-    %cut any designs that fall outside the archive limit
-    if size(state.variable_tbl,1) > options.archive_size
+    %combine to get rank of current population
+    for i=1:nnz(state.population_index)
+      %identify designs to consider
+      index = (state.rank_list == i);
       
-      %identify index of designs to keep in archive
-      [null,index] = sortrows([-state.optimal_index,state.constraint_tbl,-cont]);
-      index = index(1:options.archive_size);
-      
-      %update archive
-      state.variable_tbl = state.variable_tbl(index,:);
-      state.objective_tbl = state.objective_tbl(index,:);
-      state.constraint_tbl = state.constraint_tbl(index,:);
-      state.birth_gen_list = state.birth_gen_list(index,:);
-      state.optimal_index = state.optimal_index(index,:);
-      
-      %re-calculated hypervolume contribution of each design
-      cont = metric.inducedFrontHypervolume(...
-        state.objective_tbl,...
-        state.objective_tbl(state.optimal_index,:),...
-        options.reference_point...
-      );
-      cont(state.optimal_index,:) = cont(state.optimal_index,:) + ...
-        metric.hypervolumeContribution(...
-          state.objective_tbl(state.optimal_index,:),...
-          options.reference_point...
-        );
+      %update ranks
+      state.rank_list(index,:) = metric.nonDominatedRank(...
+        state.objective_tbl(index,:),...
+        state.constraint_tbl(index,:)...
+        ) + (i - 1);
     end
     
-    %assign hypervolume contribution
-    state.hypervolume_list = cont;    
+    %compute crowding distance of optimal designs
+    state.crowding_dist_list(state.population_index,1) = NaN;
+    index = state.rank_list == 1;
+    state.crowding_dist_list(index,:) = metric.crowdingDistance(...
+      state.objective_tbl(index,:)...
+    );
+  
+    %prune population to size
+    pop_index = state.population_index;
+    [null,index] = sortrows([...
+      state.rank_list,...
+      -state.crowding_dist_list,...
+      -state.initial_gen_list...
+    ]);
+    index = index(1:options.population_size);
+    state.population_index(1:length(pop_index),:) = false;
+    state.population_index(index,:) = true;
+    
+    %update metrics
+    expired = pop_index & ~state.population_index;
+    state.rank_list(expired,:) = NaN;
+    state.crowding_dist_list(expired,:) = NaN;
+    state.final_gen_list(expired,:) = state.generation;
+   
   end
   
   %update evaluation counter
@@ -390,7 +372,7 @@ function state = updateState(state,options)
   
   %calculate hypervolume of frontier
   state.hypervolume_per_gen(state.generation,:) = metric.hypervolume(...
-    state.objective_tbl(state.optimal_index,:),...
+    state.objective_tbl(state.rank_list == 1,:),...
     options.reference_point...
   );
 
@@ -411,6 +393,32 @@ function state = updateState(state,options)
     sum(state.runtime_per_gen)/options.max_runtime,...
     state.stall_generations/options.max_stall_generations...
   ]);
+end
+
+%evaluate function
+function [objectives,constraints] = evaluate(state,options)  
+    
+  designs = state.candidate_tbl;  
+  rows = size(designs,1);
+  num_obj = options.number_of_objectives;
+  num_constr = options.number_of_constraints;
+  objectives = nan(rows,num_obj);
+  constraints = nan(rows,num_constr);  
+  objFun = options.analysisFunction;
+  
+  if nargout(objFun) == 2
+    parfor i=1:rows
+      [objectives(i,:),constraints(i,:)] = objFun(designs(i,:));
+    end
+  elseif nargout(objFun) == 1
+    parfor i=1:rows
+      result = objFun(designs(i,:));
+      
+      %assume objectives in front and constraints in back
+      objectives(i,:) = result(1:num_obj);
+      constraints(i,:) = result(num_obj+1:num_obj+num_constr);
+    end
+  end
 end
 
 %cleanup function

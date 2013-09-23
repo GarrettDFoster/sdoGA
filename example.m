@@ -19,8 +19,8 @@ options.outputFunction = {@output.iteration, @output.convergence};
 
 %if we define the bounds on the design space the algorithm should do better.
 %In this exampel we have 2 design variables.
-options.variable_lower_bound = [-1,-2.5];
-options.variable_upper_bound = [2.5,1];
+%options.variable_lower_bound = [-1,-2.5];
+%options.variable_upper_bound = [2.5,1];
 
 %Now we can solve our objective function, which in this example is a simple 
 %2-norm calculation. To do this we call the main algorithm function and pass in
@@ -47,8 +47,8 @@ state = sdoGA(@norm,options,state);
 %Finally, if we want to see just the optimal designs and performance we can use
 %a utility function. In this case we are grabbing the optimal design values as
 %well as the associated objective values. We expect the optimum to occur at 0,0. 
-x = state.variable_tbl(state.optimal_index,:);
-f = state.objective_tbl(state.optimal_index,:);
+x = state.variable_tbl(state.rank_list == 1,:);
+f = state.objective_tbl(state.rank_list == 1,:);
 
 
 

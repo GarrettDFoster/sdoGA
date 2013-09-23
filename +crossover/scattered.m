@@ -1,5 +1,5 @@
 function [candidates] = scattered(state,options)
-  candidates = state.candidates;
+  candidates = state.candidate_tbl;
   [rows,cols] = size(candidates);
   for i=1:2:rows
     for j = 1:cols
