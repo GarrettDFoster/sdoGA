@@ -1,11 +1,6 @@
 function candidates = latinHypercube(state,options)
   %get sizing information
-%   if options.candidate_size_update < 0
-%     rows = max(options.candidate_size_bounds);
-%   else
-%     rows = min(options.candidate_size_bounds);
-%   end
-  rows = max(options.population_size,sum(state.population_index));
+  rows = options.population_size;
   cols = options.number_of_variables;
   
   %get bounds
