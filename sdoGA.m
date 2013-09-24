@@ -333,6 +333,9 @@ function state = updateState(state,options)
     for i=1:nnz(state.population_index)
       %identify designs to consider
       index = (state.rank_list == i);
+      if ~any(index)
+        break;
+      end
       
       %update ranks
       state.rank_list(index,:) = metric.nonDominatedRank(...
@@ -350,14 +353,32 @@ function state = updateState(state,options)
   
     %prune population to size
     pop_index = state.population_index;
-    [null,index] = sortrows([...
-      state.rank_list,...
-      -state.crowding_dist_list,...
-      -state.initial_gen_list...
-    ]);
-    index = index(1:options.population_size);
-    state.population_index(1:length(pop_index),:) = false;
-    state.population_index(index,:) = true;
+    if nnz(state.rank_list == 1) > options.population_size
+      
+      %keeping only frontier points
+      state.population_index(state.rank_list > 1,:) = false; 
+      
+      %remove lowest crowding distance one at a time until front fits
+      while nnz(state.rank_list == 1) > options.population_size
+        index = (state.crowding_dist_list == min(state.crowding_dist_list));
+        state.population_index(index,:) = false;
+        state.crowding_dist_list(index,:) = NaN;
+        state.rank_list(index,:) = NaN;
+        index = (state.rank_list == 1);
+        state.crowding_dist_list(index,:) = metric.crowdingDistance(...
+          state.objective_tbl(index,:)...
+        );
+      end
+    
+    else      
+      [null,index] = sortrows([...
+        state.rank_list,...
+        -state.initial_gen_list...
+      ]);
+      index = index(1:options.population_size);   
+      state.population_index(1:length(pop_index),:) = false;
+      state.population_index(index,:) = true;
+    end
     
     %update metrics
     expired = pop_index & ~state.population_index;
@@ -402,21 +423,18 @@ function [objectives,constraints] = evaluate(state,options)
   rows = size(designs,1);
   num_obj = options.number_of_objectives;
   num_constr = options.number_of_constraints;
+  
   objectives = nan(rows,num_obj);
   constraints = nan(rows,num_constr);  
   objFun = options.analysisFunction;
-  
-  if nargout(objFun) == 2
+     
+  if num_constr > 0
     parfor i=1:rows
       [objectives(i,:),constraints(i,:)] = objFun(designs(i,:));
     end
-  elseif nargout(objFun) == 1
+  else
     parfor i=1:rows
-      result = objFun(designs(i,:));
-      
-      %assume objectives in front and constraints in back
-      objectives(i,:) = result(1:num_obj);
-      constraints(i,:) = result(num_obj+1:num_obj+num_constr);
+      objectives(i,:) = objFun(designs(i,:));
     end
   end
 end

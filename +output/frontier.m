@@ -1,10 +1,10 @@
 function frontier(state,options)  
   %figure out how many dimensions
-  if options.objective_length == 1
+  if options.number_of_objectives == 1
     output.convergence(state,options);
   else
-    n = options.objective_length;
-    score = state.objective_values(state.ranks == 1,:);
+    n = options.number_of_objectives;
+    score = state.objective_tbl(state.rank_list == 1,:);
     for i=1:n
       for j=i+1:n
         subplot(n-1,n-1,(i-1)*(n-1)+(j-1))
